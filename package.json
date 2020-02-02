@@ -1,0 +1,31 @@
+{
+  "name": "freshsales-airtable",
+  "version": "0.0.1",
+  "description": "A serverless app for syncing Freshsales leads with an Airtable sheet",
+  "scripts": {
+    "test": "fdk validate",
+    "start": "fdk run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kaustavdm/freshsales-airtable.git"
+  },
+  "keywords": [
+    "freshsales",
+    "airtable"
+  ],
+  "author": "Kaustav Das Modak",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kaustavdm/freshsales-airtable/issues"
+  },
+  "homepage": "https://github.com/kaustavdm/freshsales-airtable#readme",
+  "devDependencies": {
+    "eslint": "^6.8.0",
+    "eslint-config-standard": "^14.1.0",
+    "eslint-plugin-import": "^2.20.1",
+    "eslint-plugin-node": "^11.0.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.1"
+  }
+}

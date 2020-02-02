@@ -1,0 +1,7 @@
+.fdk/
+node_modules/
+coverage/
+server/test-data/
+dist/
+.report.json
+package-lock.json

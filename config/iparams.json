@@ -1,0 +1,28 @@
+{
+  "api_key": {
+    "display_name": "Freshsales API Key",
+    "description": "Your Freshsales API Key",
+    "type": "text",
+    "required": true,
+    "secure": true
+  },
+  "airtable_api_key": {
+    "display_name": "Airtable API Key",
+    "description": "Your Airtable API Key. See https://airtable.com/api for details",
+    "type": "text",
+    "required": true,
+    "secure": true
+  },
+  "airtable_base_id": {
+    "display_name": "Airtable Base ID",
+    "description": "Your Airtable Base's ID. See https://airtable.com/api for details",
+    "type": "text",
+    "required": true
+  },
+  "airtable_table": {
+    "display_name": "Airtable Table name",
+    "description": "Name of the table in this Airtable base",
+    "type": "text",
+    "required": true
+  }
+}
