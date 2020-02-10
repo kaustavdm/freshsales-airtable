@@ -1,7 +1,8 @@
 .fdk/
 node_modules/
 coverage/
-server/test-data/
+server/test_data/
+.vscode/
 dist/
 .report.json
 package-lock.json
