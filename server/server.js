@@ -147,11 +147,11 @@ function createAirtableRecord (lead) {
     body: JSON.stringify({
       fields: {
         ID: lead.id,
-        'First Name': lead.first_name,
-        'Last Name': lead.last_name,
-        Email: lead.email,
-        Company: lead.company ? lead.company.name : '',
-        LinkedIn: lead.linkedin,
+        'First Name': lead.first_name.value,
+        'Last Name': lead.last_name.value,
+        Email: lead.emails.value[0] ? lead.emails.value[0] : null,
+        Company: lead.company.name.value,
+        LinkedIn: lead.linkedin.value,
         Synced: true,
         Delete: false
       }
