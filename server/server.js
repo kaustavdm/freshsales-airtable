@@ -137,6 +137,30 @@ function updateAirtableRecordStatus (recordId, leadId) {
     })
 }
 
+function deleteAirtableRecord (recordId) {
+  var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>/' + recordId
+  var opts = {
+    headers: {
+      Authorization: 'Bearer <%= iparam.airtable_api_key %>',
+      'Content-Type': 'application/json; charset=utf-8'
+    }
+  }
+  return $request.delete(url, opts)
+    .then(function (data) {
+      var res
+      try {
+        res = JSON.parse(data.response)
+      } catch (err) {
+        console.error('Error parsing JSON: ' + err.message)
+        res = false
+      }
+      return res
+    })
+    .fail(function (err) {
+      console.error('Error in updating records in Airtable\n', err)
+    })
+}
+
 function createLead (lead) {
   var url = 'https://kaustavdm.freshsales.io/api/leads'
   var opts = {
@@ -160,7 +184,33 @@ function createLead (lead) {
       return res
     })
     .fail(function (err) {
-      console.error('Error in creating lead\n', err.message)
+      console.error('Error in creating lead. Status: ', err.status)
+    })
+}
+
+function deleteLead (leadId) {
+  var url = 'https://kaustavdm.freshsales.io/api/leads/' + leadId
+  var opts = {
+    headers: {
+      Authorization: 'Token token=<%= iparam.api_key %>',
+      'Content-Type': 'application/json; charset=utf-8'
+    }
+  }
+
+  return $request.delete(url, opts)
+    .then(function (data) {
+      var res
+      try {
+        res = JSON.parse(data.response)
+      } catch (err) {
+        console.error('Error parsing JSON', err.message)
+        throw err
+      }
+      console.info('Deleted lead. ID: ' + leadId)
+      return res
+    })
+    .fail(function (err) {
+      console.error('Error in deleting lead. Status: ', err.status)
     })
 }
 
@@ -202,7 +252,7 @@ exports = {
    *
    * @param {Object} payload
    */
-  onAppUninstall: function onAppUninstallHandler (payload) {
+  onAppUninstall: function onAppUninstallHandler () {
     console.info('App uninstall triggered')
     $db.get('schedule_id')
       .then(function (res) {
@@ -243,7 +293,7 @@ exports = {
             created_at: r.fields['Created At']
           }
 
-          if (!r.fields.ID) {
+          if (!r.fields.ID && !r.fields.Synced) {
             createLead(lead)
               .then(function (res) {
                 console.info('Updating record in airtable')
@@ -252,6 +302,18 @@ exports = {
               .fail(function (err) {
                 console.info('Lead create error for record: ' + r.id)
                 console.error('Unable to create/update lead', err.message)
+              })
+          }
+
+          if (r.fields.Delete && r.fields.ID) {
+            deleteLead(r.fields.ID)
+              .then(function () {
+                console.info('Deleting record in Airtable')
+                return deleteAirtableRecord(r.id)
+              })
+              .fail(function (err) {
+                console.error('Lead delete error for record: ' + r.id)
+                return JSON.parse(err.response)
               })
           }
         })
