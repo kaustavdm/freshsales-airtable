@@ -1,18 +1,64 @@
-/* global $request, $schedule, renderData */
+/* global $db, $request, $schedule, renderData */
+
+function createSchedule (payload, isRecurring) {
+  var scheduleName = 'airtable_sync_' + Date.now().toString().substr(-8)
+  var opts = {
+    name: scheduleName,
+    data: payload,
+    schedule_at: new Date((new Date()).getTime() + 300000).toISOString() // 5 mins from now
+  }
+  if (isRecurring) {
+    opts.repeat = {
+      time_unit: 'minutes',
+      frequency: 5
+    }
+  }
+  return $schedule.create(opts)
+    .then(function () {
+      console.info('Scheduled sync successfully')
+      return scheduleName
+    })
+    .fail(function (err) {
+      console.error('Cannot schedule sync\n', err.message)
+    })
+}
+
+/**
+ * Updates last run time in data storage
+ *
+ * @param {string} timeStr - An ISO date string. Optional. Defaults to current time
+ * @param {boolean} isFailure - if `true`, schedules a run in the next 30 seconds
+ * @param {Object|null} payload - Optional payload
+ */
+function updateLastRunTime (timestr, isFailure, payload) {
+  timestr = timestr || (new Date()).toISOString()
+  return $db.set('lastrun', timestr)
+    .fail(function (err) {
+      if (isFailure) {
+        return createSchedule(payload, false)
+      }
+      console.error('Unable to update last run time in data store', err.message)
+      return false
+    })
+    .fail(function (err) {
+      console.error('Error', err.message)
+    })
+}
 
 /**
  * Fetch records from Airtable
  *
- * @param {string} apiKey - Airtable API Key
- * @param {string} baseId - ID of the Airtable base
- * @param {string} tableName - Name of the table in the Airtable base
+ * @param {string} since - The time since when Updated At field will be filtered.
+ * Create this by using `Date.prototype.toISOString()`. Default: 5 minutes
+ *
+ * @todo Handle pagination of API response
  *
  * @returns {Promise<Array<Object>} - Returns a Promise that resolves to an
  * array of objects containing records
  */
-function getAirtableRecords (apiKey, baseId, tableName) {
+function getAirtableRecords (since) {
+  since = since || (new Date((new Date()).getTime() - 5 * 60000)).toISOString()
   var qs = [
-    'maxRecords=100',
     'pageSize=100',
     'fields[]=ID',
     'fields[]=' + encodeURIComponent('First Name'),
@@ -20,15 +66,17 @@ function getAirtableRecords (apiKey, baseId, tableName) {
     'fields[]=Email',
     'fields[]=City',
     'fields[]=LinkedIn',
-    'filterByFormula=' + encodeURIComponent('{ID} = ""'),
-    'sort[0][field]=' + encodeURIComponent('Created At'),
+    'fields[]=Delete',
+    'fields[]=Synced',
+    'filterByFormula=' + encodeURIComponent('IS_AFTER({Updated At}, "' + since + '")'),
+    'sort[0][field]=' + encodeURIComponent('Updated At'),
     'sort[0][direction]=asc'
   ].join('&')
 
-  var url = 'https://api.airtable.com/v0/' + baseId + '/' + tableName + '?' + qs
+  var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>' + '?' + qs
   var opts = {
     headers: {
-      Authorization: 'Bearer ' + apiKey,
+      Authorization: 'Bearer <%= iparam.airtable_api_key %>',
       'Content-Type': 'application/json; charset=utf-8'
     }
   }
@@ -36,10 +84,56 @@ function getAirtableRecords (apiKey, baseId, tableName) {
   return $request.get(url, opts)
     .then(function (data) {
       var res = JSON.parse(data.response)
+      console.info(res.records.length + ' record(s) fetched from Airtable')
       return res.records
     })
     .fail(function (err) {
-      console.log('Error in fetching records from Airtable\n', err)
+      console.error('Error in fetching records from Airtable\n', err)
+    })
+}
+
+/**
+ * Update Airtable record status by setting ID and Synced status
+ *
+ * @param {string} recordId - The Airtable record ID
+ * @param {string} leadId - Freshsales lead ID
+ *
+ * @returns {Promise<Array<Object>} - Returns a Promise that resolves to an
+ * array of objects containing records
+ */
+function updateAirtableRecordStatus (recordId, leadId) {
+  var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>'
+  var opts = {
+    headers: {
+      Authorization: 'Bearer <%= iparam.airtable_api_key %>',
+      'Content-Type': 'application/json; charset=utf-8'
+    },
+    body: JSON.stringify({
+      records: [
+        {
+          id: recordId,
+          fields: {
+            ID: leadId,
+            Synced: true,
+            Delete: false
+          }
+        }
+      ]
+    })
+  }
+  return $request.patch(url, opts)
+    .then(function (data) {
+      var res
+      try {
+        res = JSON.parse(data.response).records
+      } catch (err) {
+        console.error('Error parsing JSON: ' + err.message)
+        res = []
+      }
+      return res
+    })
+    .fail(function (err) {
+      console.error('Error in updating records in Airtable\n', err)
     })
 }
 
@@ -47,7 +141,7 @@ function createLead (lead) {
   var url = 'https://kaustavdm.freshsales.io/api/leads'
   var opts = {
     headers: {
-      Authorization: 'Token token=<%= (iparam.api_key) %>',
+      Authorization: 'Token token=<%= iparam.api_key %>',
       'Content-Type': 'application/json; charset=utf-8'
     },
     body: JSON.stringify({ lead: lead })
@@ -55,10 +149,18 @@ function createLead (lead) {
 
   return $request.post(url, opts)
     .then(function (data) {
-      return JSON.parse(data.response)
+      var res
+      try {
+        res = JSON.parse(data.response)
+      } catch (err) {
+        console.error('Error parsing JSON', err.message)
+        throw err
+      }
+      console.info('Created lead. ID: ' + res.lead.id)
+      return res
     })
     .fail(function (err) {
-      console.log('Error in creating lead\n', err)
+      console.error('Error in creating lead\n', err.message)
     })
 }
 
@@ -80,25 +182,18 @@ exports = {
    *
    * @param {Object} payload - Payload received from installation
    */
-  onAppInstall: function onAppInstall(payload) {
-    console.log('App install payload\n', JSON.stringify(payload, null, 2))
-
-    $schedule.create({
-      name: 'airtable_lead_sync',
-      data: {},
-      schedule_at: new Date((new Date()).getTime() + 30000).toISOString(), // 30 seconds from now
-      repeat: {
-        time_unit: 'minutes',
-        frequency: 5
-      }
-    })
+  onAppInstall: function onAppInstall (payload) {
+    createSchedule(payload, true)
+      .then(function (id) {
+        console.info('Scheduled: ' + id)
+        return $db.set('schedule_id', { id: id })
+      })
       .then(function () {
-        console.log('Scheduled sync successfully')
         renderData()
       })
       .fail(function (err) {
-        renderData({ message: 'Unable to schedule syncing' })
-        console.error('Cannot schedule sync\n', err)
+        console.error('Error on install\n', err)
+        renderData({ message: 'Unable to install' })
       })
   },
 
@@ -107,13 +202,17 @@ exports = {
    *
    * @param {Object} payload
    */
-  onAppUninstall: function onAppUninstallHandler(payload) {
-    console.log('App uninstall payload\n', JSON.stringify(payload, null, 2))
-    $schedule.delete({
-      name: 'airtable_lead_sync'
-    })
+  onAppUninstall: function onAppUninstallHandler (payload) {
+    console.info('App uninstall triggered')
+    $db.get('schedule_id')
+      .then(function (res) {
+        console.info('Uninstall: Attempting to delete schedule ' + res.id)
+        return $schedule.delete({
+          name: res.id
+        })
+      })
       .then(function () {
-        console.log('Scheduled sync disabled')
+        console.info('Scheduled sync disabled')
         renderData()
       })
       .fail(function (err) {
@@ -127,33 +226,39 @@ exports = {
    *
    * @param {Object} payload - Payload received on schedule trigger
    */
-  onScheduledEvent: function onscheduledEventHandler(payload) {
-    console.log($request)
-    console.log('Scheduled Event\n', payload)
-    var p = payload.iparams
-    getAirtableRecords(p.airtable_api_key, p.airtable_base_id, p.airtable_table)
+  onScheduledEvent: function onscheduledEventHandler (payload) {
+    console.info('Scheduled event triggered')
+    var startTime = (new Date()).toISOString()
+    getAirtableRecords()
       .then(function (records) {
         records.forEach(function (r) {
-          createLead({
+          var lead = {
             first_name: r.fields['First Name'],
             last_name: r.fields['Last Name'],
             company: {
-              name: r.fields['Company']
+              name: r.fields.Company
             },
-            city: r.fields['City'],
-            linkedin: r.fields['LinkedIn'],
-            created_at: r.fields['Created At'],
-            custom_field: {
-              airtable_record_id: r.id
-            }
-          })
-          .then(function (res) {
-            console.log('Created lead', res)
-          })
-          .fail(function (err) {
-            console.log('Unable to create lead', err)
-          })
+            city: r.fields.City,
+            linkedin: r.fields.LinkedIn,
+            created_at: r.fields['Created At']
+          }
+
+          if (!r.fields.ID) {
+            createLead(lead)
+              .then(function (res) {
+                console.info('Updating record in airtable')
+                return updateAirtableRecordStatus(r.id, res.lead.id)
+              })
+              .fail(function (err) {
+                console.info('Lead create error for record: ' + r.id)
+                console.error('Unable to create/update lead', err.message)
+              })
+          }
         })
+      })
+      .fail(function (err) {
+        updateLastRunTime(startTime, true, payload)
+        console.error('Error running scheduled event\n', payload, err.message)
       })
   },
 
@@ -162,7 +267,7 @@ exports = {
    *
    * @param {Object} args - Args from the lead create event
    */
-  onLeadCreate: function onLeadCreateHandler(args) {
+  onLeadCreate: function onLeadCreateHandler (args) {
     console.log('Hello ' + args.data.lead.email)
     console.log('Installation args', args.iparam)
   }
