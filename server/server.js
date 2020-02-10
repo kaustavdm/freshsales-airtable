@@ -137,6 +137,42 @@ function updateAirtableRecordStatus (recordId, leadId) {
     })
 }
 
+function createAirtableRecord (lead) {
+  var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>'
+  var opts = {
+    headers: {
+      Authorization: 'Bearer <%= iparam.airtable_api_key %>',
+      'Content-Type': 'application/json; charset=utf-8'
+    },
+    body: JSON.stringify({
+      fields: {
+        ID: lead.id,
+        'First Name': lead.first_name,
+        'Last Name': lead.last_name,
+        Email: lead.email,
+        Company: lead.company ? lead.company.name : '',
+        LinkedIn: lead.linkedin,
+        Synced: true,
+        Delete: false
+      }
+    })
+  }
+  return $request.post(url, opts)
+    .then(function (data) {
+      var res
+      try {
+        res = JSON.parse(data.response).records
+      } catch (err) {
+        console.error('Error parsing JSON: ' + err.message)
+        res = []
+      }
+      return res
+    })
+    .fail(function (err) {
+      console.error('Error in creating record in Airtable\n', err)
+    })
+}
+
 function deleteAirtableRecord (recordId) {
   var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>/' + recordId
   var opts = {
@@ -330,8 +366,13 @@ exports = {
    * @param {Object} args - Args from the lead create event
    */
   onLeadCreate: function onLeadCreateHandler (args) {
-    console.log('Hello ' + args.data.lead.email)
-    console.log('Installation args', args.iparam)
+    createAirtableRecord(args.data.lead)
+      .then(function (res) {
+        console.log('Created Airtable record\n', res)
+      })
+      .fail(function (err) {
+        console.error('Unable to create Airtable record for new lead', err)
+      })
   }
 
 }
