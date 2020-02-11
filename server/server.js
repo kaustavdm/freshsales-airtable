@@ -139,6 +139,7 @@ function updateAirtableRecordStatus (recordId, leadId) {
 
 function createAirtableRecord (lead) {
   var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>'
+  console.log(lead)
   var opts = {
     headers: {
       Authorization: 'Bearer <%= iparam.airtable_api_key %>',
@@ -147,11 +148,12 @@ function createAirtableRecord (lead) {
     body: JSON.stringify({
       fields: {
         ID: lead.id,
-        'First Name': lead.first_name.value,
-        'Last Name': lead.last_name.value,
-        Email: lead.emails.value[0] ? lead.emails.value[0] : null,
-        Company: lead.company.name.value,
-        LinkedIn: lead.linkedin.value,
+        'First Name': lead.first_name,
+        'Last Name': lead.last_name,
+        Email: lead.email,
+        Company: lead.company.name,
+        City: lead.city,
+        LinkedIn: lead.linkedin,
         Synced: true,
         Delete: false
       }
@@ -159,6 +161,7 @@ function createAirtableRecord (lead) {
   }
   return $request.post(url, opts)
     .then(function (data) {
+      console.log(JSON.parse(data.response))
       var res
       try {
         res = JSON.parse(data.response).records
