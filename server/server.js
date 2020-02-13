@@ -354,7 +354,7 @@ exports = {
         var recordsLen = records.length
         records.forEach(function (r, idx) {
           var lead = {
-            id: r.fields['ID'],
+            id: r.fields.ID,
             first_name: r.fields['First Name'],
             last_name: r.fields['Last Name'],
             company: {
