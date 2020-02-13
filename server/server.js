@@ -291,7 +291,8 @@ exports = {
     { event: 'onAppInstall', callback: 'onAppInstall' },
     { event: 'onAppUninstall', callback: 'onAppUninstall' },
     { event: 'onScheduledEvent', callback: 'onScheduledEvent' },
-    { event: 'onLeadCreate', callback: 'onLeadCreate' }
+    { event: 'onLeadCreate', callback: 'onLeadCreate' },
+    { event: 'onLeadDelete', callback: 'onLeadDelete' }
   ],
 
   /**
@@ -370,6 +371,9 @@ exports = {
               .then(function (res) {
                 console.info('Updating record in airtable')
                 return updateAirtableRecordStatus(r.id, res.lead.id)
+                  .then(function () {
+                    return $db.set('lead:' + res.lead.id, { recordId: r.id })
+                  })
               })
               .fail(function (err) {
                 console.info('Lead create error for record: ' + r.id)
@@ -422,6 +426,20 @@ exports = {
    */
   onLeadCreate: function onLeadCreateHandler (args) {
     createAirtableRecord(args.data.lead)
+  },
+
+  /**
+   * Handler for lead delete event
+   */
+  onLeadDelete: function onLeadDeleteHandler (args) {
+    console.log('Lead deleted: ' + args.data.lead.id)
+    $db.get('lead:' + args.data.lead.id)
+      .then(function (data) {
+        return deleteAirtableRecord(data.recordId)
+      })
+      .fail(function (err) {
+        console.log('Error in lead delete', err)
+      })
   }
 
 }
