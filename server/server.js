@@ -60,6 +60,7 @@ function updateLastRunTime (timestr, isFailure, payload) {
  */
 function getAirtableRecords (since) {
   since = since || (new Date((new Date()).getTime() - 5 * 60000)).toISOString()
+  console.log('Fetching Airtable records since ' + since)
   var qs = [
     'pageSize=100',
     'fields[]=ID',
@@ -388,7 +389,13 @@ exports = {
   onScheduledEvent: function onscheduledEventHandler (payload) {
     console.info('Scheduled event triggered')
     var startTime = (new Date()).toISOString()
-    getAirtableRecords()
+    $db.get('lastrun')
+      .then(function (data) {
+        return getAirtableRecords(data.timestr)
+      })
+      .fail(function () {
+        return getAirtableRecords()
+      })
       .then(function (records) {
         var recordsLen = records.length
         records.forEach(function (r, idx) {
@@ -437,7 +444,9 @@ exports = {
           if (r.fields.ID && !r.fields.Delete) {
             updateLead(lead)
               .then(function () {
-                return updateAirtableRecordStatus(r.id, r.fields.ID, true, false)
+                if (!r.fields.Synced) {
+                  return updateAirtableRecordStatus(r.id, r.fields.ID, true, false)
+                }
               })
               .fail(function (err) {
                 console.log('Unable to update lead', err)
