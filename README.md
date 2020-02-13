@@ -1,6 +1,20 @@
-## Freshsales App Project
+## Freshsales <> Airtable sync
 
-Congratulations on creating your App Project! Feel free to replace this text with your project description.
+Status: Work in Progress.
+
+A Freshsales custom app to sync an Airtable sheet with Freshsales leads.
+
+The Airtable sheet should contain these columns:
+
+ - `ID` - Numeric. Primary field.
+ - `First Name` - Text
+ - `Last Name` - Text
+ - `Email` - Email address
+ - `LinkedIn` - URL
+ - `City` - Text
+ - `Company` - Text
+ - `Created At` - Create date/time
+ - `Updated At` - Last updated date/time
 
 ### Project folder structure explained
 
@@ -8,25 +22,6 @@ Congratulations on creating your App Project! Feel free to replace this text wit
     ├── README.md                  This file.
     ├── config                     Installation parameter configs.
     │   ├── iparams.json           Installation parameter config in English language.
-    │   └── iparam_test_data.json  Installation parameter data for local testing.
     └── manifest.json              Project manifest.
     └── server                     Business logic for remote request and event handlers.
-        ├── lib
-        │   └── handle-response.js
         ├── server.js
-        └── test_data
-            ├── onAppInstall.json
-            ├── onAppUninstall.json
-            ├── onContactCreate.json
-            ├── onContactDelete.json
-            ├── onContactUpdate.json
-            ├── onDealCreate.json
-            ├── onDealDelete.json
-            ├── onDealUpdate.json
-            ├── onExternalEvent.json
-            ├── onLeadCreate.json
-            ├── onLeadDelete.json
-            ├── onLeadUpdate.json
-            ├── onSalesAccountCreate.json
-            ├── onSalesAccountDelete.json
-            └── onSalesAccountUpdate.json
