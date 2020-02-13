@@ -179,6 +179,44 @@ function createAirtableRecord (lead) {
     })
 }
 
+function updateAirtableRecord (recordId, lead) {
+  var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>/' + recordId
+  var opts = {
+    headers: {
+      Authorization: 'Bearer <%= iparam.airtable_api_key %>',
+      'Content-Type': 'application/json; charset=utf-8'
+    },
+    body: JSON.stringify({
+      fields: {
+        ID: lead.id,
+        'First Name': lead.first_name,
+        'Last Name': lead.last_name,
+        Email: lead.email,
+        Company: lead.company.name,
+        City: lead.city,
+        LinkedIn: lead.linkedin,
+        Synced: true,
+        Delete: false
+      }
+    })
+  }
+  return $request.patch(url, opts)
+    .then(function (data) {
+      console.log(JSON.parse(data.response))
+      var res
+      try {
+        res = JSON.parse(data.response).records
+      } catch (err) {
+        console.error('Error parsing JSON: ' + err.message)
+        res = []
+      }
+      return res
+    })
+    .fail(function (err) {
+      console.error('Error in updating record in Airtable\n', err)
+    })
+}
+
 function deleteAirtableRecord (recordId) {
   var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>/' + recordId
   var opts = {
@@ -292,6 +330,7 @@ exports = {
     { event: 'onAppUninstall', callback: 'onAppUninstall' },
     { event: 'onScheduledEvent', callback: 'onScheduledEvent' },
     { event: 'onLeadCreate', callback: 'onLeadCreate' },
+    { event: 'onLeadUpdate', callback: 'onLeadUpdate' },
     { event: 'onLeadDelete', callback: 'onLeadDelete' }
   ],
 
@@ -429,6 +468,22 @@ exports = {
   },
 
   /**
+   * Handler for lead update event
+   */
+  onLeadUpdate: function onLeadUpdateHandler (args) {
+    console.log('Lead Update trigger: ' + args.data.lead.id)
+    $db.get('lead:' + args.data.lead.id)
+      .then(function (data) {
+        if (data && data.recordId) {
+          updateAirtableRecord(data.recordId, args.data.lead)
+        }
+      })
+      .fail(function (err) {
+        console.log('Error in lead update', err)
+      })
+  },
+
+  /**
    * Handler for lead delete event
    */
   onLeadDelete: function onLeadDeleteHandler (args) {
@@ -437,8 +492,11 @@ exports = {
       .then(function (data) {
         return deleteAirtableRecord(data.recordId)
       })
+      .then(function () {
+        return $db.delete('lead:' + args.data.lead.id)
+      })
       .fail(function (err) {
-        console.log('Error in lead delete', err)
+        console.error('Error in lead delete. Reason: ', err)
       })
   }
 
