@@ -26,22 +26,24 @@ function createSchedule (payload, isRecurring) {
 /**
  * Updates last run time in data storage
  *
- * @param {string} timeStr - An ISO date string. Optional. Defaults to current time
+ * @param {string|null} timeStr - An ISO date string.
  * @param {boolean} isFailure - if `true`, schedules a run in the next 30 seconds
  * @param {Object|null} payload - Optional payload
  */
 function updateLastRunTime (timestr, isFailure, payload) {
-  timestr = timestr || (new Date()).toISOString()
-  return $db.set('lastrun', timestr)
-    .fail(function (err) {
-      if (isFailure) {
-        return createSchedule(payload, false)
-      }
-      console.error('Unable to update last run time in data store', err.message)
-      return false
+  timestr = timestr == null ? (new Date()).toISOString() : timestr
+  return $db.set('lastrun', {
+    timestr: timestr,
+    isFailure: isFailure
+  })
+    .then(function () {
+      console.log('Updated last run time to ' + timestr)
     })
-    .fail(function (err) {
-      console.error('Error', err.message)
+    .fail(function () {
+      if (isFailure) {
+        console.log('Attempting to reschedule soon')
+        createSchedule(payload, false)
+      }
     })
 }
 
@@ -97,11 +99,13 @@ function getAirtableRecords (since) {
  *
  * @param {string} recordId - The Airtable record ID
  * @param {string} leadId - Freshsales lead ID
+ * @param {boolean} checkSynced - True to mark as synced
+ * @param {boolean} checkDelete - True to mark as delete
  *
  * @returns {Promise<Array<Object>} - Returns a Promise that resolves to an
  * array of objects containing records
  */
-function updateAirtableRecordStatus (recordId, leadId) {
+function updateAirtableRecordStatus (recordId, leadId, checkSynced = true, checkDelete = false) {
   var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>'
   var opts = {
     headers: {
@@ -114,8 +118,8 @@ function updateAirtableRecordStatus (recordId, leadId) {
           id: recordId,
           fields: {
             ID: leadId,
-            Synced: true,
-            Delete: false
+            Synced: checkSynced,
+            Delete: checkDelete
           }
         }
       ]
@@ -139,7 +143,6 @@ function updateAirtableRecordStatus (recordId, leadId) {
 
 function createAirtableRecord (lead) {
   var url = 'https://api.airtable.com/v0/<%= iparam.airtable_base_id %>/<%= iparam.airtable_table %>'
-  console.log(lead)
   var opts = {
     headers: {
       Authorization: 'Bearer <%= iparam.airtable_api_key %>',
@@ -224,6 +227,33 @@ function createLead (lead) {
     })
     .fail(function (err) {
       console.error('Error in creating lead. Status: ', err.status)
+    })
+}
+
+function updateLead (lead) {
+  var url = 'https://kaustavdm.freshsales.io/api/leads/' + lead.id
+  var opts = {
+    headers: {
+      Authorization: 'Token token=<%= iparam.api_key %>',
+      'Content-Type': 'application/json; charset=utf-8'
+    },
+    body: JSON.stringify({ lead: lead })
+  }
+
+  return $request.put(url, opts)
+    .then(function (data) {
+      var res
+      try {
+        res = JSON.parse(data.response)
+      } catch (err) {
+        console.error('Error parsing JSON', err.message)
+        throw err
+      }
+      console.info('Updated lead. ID: ' + res.lead.id)
+      return res
+    })
+    .fail(function (err) {
+      console.error('Error in updating lead. Status: ', err.status)
     })
 }
 
@@ -320,8 +350,10 @@ exports = {
     var startTime = (new Date()).toISOString()
     getAirtableRecords()
       .then(function (records) {
-        records.forEach(function (r) {
+        var recordsLen = records.length
+        records.forEach(function (r, idx) {
           var lead = {
+            id: r.fields['ID'],
             first_name: r.fields['First Name'],
             last_name: r.fields['Last Name'],
             company: {
@@ -332,6 +364,7 @@ exports = {
             created_at: r.fields['Created At']
           }
 
+          // New lead records
           if (!r.fields.ID && !r.fields.Synced) {
             createLead(lead)
               .then(function (res) {
@@ -344,6 +377,7 @@ exports = {
               })
           }
 
+          // Lead records marked for deletion
           if (r.fields.Delete && r.fields.ID) {
             deleteLead(r.fields.ID)
               .then(function () {
@@ -354,6 +388,24 @@ exports = {
                 console.error('Lead delete error for record: ' + r.id)
                 return JSON.parse(err.response)
               })
+          }
+
+          // Updated lead records
+          if (r.fields.ID && !r.fields.Delete) {
+            updateLead(lead)
+              .then(function () {
+                return updateAirtableRecordStatus(r.id, r.fields.ID, true, false)
+              })
+              .fail(function (err) {
+                console.log('Unable to update lead', err)
+                return updateAirtableRecordStatus(r.id, r.fields.ID, false, false)
+              })
+          }
+
+          // Last item
+          if (idx === recordsLen - 1) {
+            // All done successfully
+            updateLastRunTime(null, false, payload)
           }
         })
       })
@@ -370,12 +422,6 @@ exports = {
    */
   onLeadCreate: function onLeadCreateHandler (args) {
     createAirtableRecord(args.data.lead)
-      .then(function (res) {
-        console.log('Created Airtable record\n', res)
-      })
-      .fail(function (err) {
-        console.error('Unable to create Airtable record for new lead', err)
-      })
   }
 
 }
