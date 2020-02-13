@@ -243,7 +243,6 @@ function deleteAirtableRecord (recordId) {
 }
 
 function createLead (lead) {
-  var url = 'https://kaustavdm.freshsales.io/api/leads'
   var opts = {
     headers: {
       Authorization: 'Token token=<%= iparam.api_key %>',
@@ -252,7 +251,13 @@ function createLead (lead) {
     body: JSON.stringify({ lead: lead })
   }
 
-  return $request.post(url, opts)
+  return $db.get('domain')
+    .then(function (data) {
+      var domain = data.domain || '/'
+      var url = 'https://' + domain + '/api/leads'
+      console.log(url)
+      return $request.post(url, opts)
+    })
     .then(function (data) {
       var res
       try {
@@ -270,7 +275,6 @@ function createLead (lead) {
 }
 
 function updateLead (lead) {
-  var url = 'https://kaustavdm.freshsales.io/api/leads/' + lead.id
   var opts = {
     headers: {
       Authorization: 'Token token=<%= iparam.api_key %>',
@@ -279,7 +283,12 @@ function updateLead (lead) {
     body: JSON.stringify({ lead: lead })
   }
 
-  return $request.put(url, opts)
+  return $db.get('domain')
+    .then(function (data) {
+      var domain = data.domain || '/'
+      var url = 'https://' + domain + '/api/leads/' + lead.id
+      return $request.put(url, opts)
+    })
     .then(function (data) {
       var res
       try {
@@ -297,7 +306,6 @@ function updateLead (lead) {
 }
 
 function deleteLead (leadId) {
-  var url = 'https://kaustavdm.freshsales.io/api/leads/' + leadId
   var opts = {
     headers: {
       Authorization: 'Token token=<%= iparam.api_key %>',
@@ -305,7 +313,12 @@ function deleteLead (leadId) {
     }
   }
 
-  return $request.delete(url, opts)
+  return $db.get('domain')
+    .then(function (data) {
+      var domain = data.domain || '/'
+      var url = 'https://' + domain + '/api/leads/' + leadId
+      return $request.delete(url, opts)
+    })
     .then(function (data) {
       var res
       try {
@@ -345,8 +358,10 @@ exports = {
   onAppInstall: function onAppInstall (payload) {
     createSchedule(payload, true)
       .then(function (id) {
-        console.info('Scheduled: ' + id)
         return $db.set('schedule_id', { id: id })
+      })
+      .then(function () {
+        return $db.set('domain', { domain: payload.domain })
       })
       .then(function () {
         renderData()
@@ -496,7 +511,6 @@ exports = {
    * Handler for lead delete event
    */
   onLeadDelete: function onLeadDeleteHandler (args) {
-    console.log('Lead deleted: ' + args.data.lead.id)
     $db.get('lead:' + args.data.lead.id)
       .then(function (data) {
         return deleteAirtableRecord(data.recordId)
