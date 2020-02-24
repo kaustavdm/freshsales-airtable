@@ -45,6 +45,10 @@ Here is an [example Airtable base][_base] with this schema.
 
 That's it. You are all set. Try creating a record in your Airtable base.
 
+# License
+
+Released under the [MIT](LICENSE) license.
+
 [_fs]: https://freshsales.io
 [_fsapi]: https://support.freshsales.io/support/solutions/articles/220099-how-to-find-my-api-key
 [_schema]: #airtable-schema
