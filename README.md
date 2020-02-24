@@ -15,9 +15,9 @@ These are step-by-step instructions for installing this app as a custom app in F
 
 3. Create an Airtable base with the [schema][_schema] mentioned below
 4. Get [Airtable API credentials][_airtableapi] for your base. To do this, login to Airtable, go to the [Airtable API][_airtableapi] page, and click the base you have created. You will need these three details:
-  a. `Airtable API Key`: Get your Airtable API key from the [Account Settings][_airtableaccount] page.
-  b. `Airtable Base ID`: The ID for your Airtable base. You will see this on the API docs page for your base
-  c. `Airtable Table name`: The name of the table you have created in the Airtable base
+    - `Airtable API Key`: Get your Airtable API key from the [Account Settings][_airtableaccount] page.
+    - `Airtable Base ID`: The ID for your Airtable base. You will see this on the API docs page for your base
+    - `Airtable Table name`: The name of the table you have created in the Airtable base
 
 ### Airtable schema
 
