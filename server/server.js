@@ -1,51 +1,12 @@
-/* global $db, $request, $schedule, renderData */
+'use strict'
 
-function createSchedule (payload, isRecurring) {
-  var scheduleName = 'airtable_sync_' + Date.now().toString().substr(-8)
-  var opts = {
-    name: scheduleName,
-    data: payload,
-    schedule_at: new Date((new Date()).getTime() + 300000).toISOString() // 5 mins from now
-  }
-  if (isRecurring) {
-    opts.repeat = {
-      time_unit: 'minutes',
-      frequency: 5
-    }
-  }
-  return $schedule.create(opts)
-    .then(function () {
-      console.info('Scheduled sync successfully')
-      return scheduleName
-    })
-    .fail(function (err) {
-      console.error('Cannot schedule sync\n', err.message)
-    })
-}
+/* global $db, $request, renderData */
 
-/**
- * Updates last run time in data storage
- *
- * @param {string|null} timeStr - An ISO date string.
- * @param {boolean} isFailure - if `true`, schedules a run in the next 30 seconds
- * @param {Object|null} payload - Optional payload
- */
-function updateLastRunTime (timestr, isFailure, payload) {
-  timestr = timestr == null ? (new Date()).toISOString() : timestr
-  return $db.set('lastrun', {
-    timestr: timestr,
-    isFailure: isFailure
-  })
-    .then(function () {
-      console.log('Updated last run time to ' + timestr)
-    })
-    .fail(function () {
-      if (isFailure) {
-        console.log('Attempting to reschedule soon')
-        createSchedule(payload, false)
-      }
-    })
-}
+var schedule = require('./schedule')
+var transform = require('./transform')
+var leadClient = require('./lead')
+
+var domain = ''
 
 /**
  * Fetch records from Airtable
@@ -242,38 +203,6 @@ function deleteAirtableRecord (recordId) {
     })
 }
 
-function createLead (lead) {
-  var opts = {
-    headers: {
-      Authorization: 'Token token=<%= iparam.api_key %>',
-      'Content-Type': 'application/json; charset=utf-8'
-    },
-    body: JSON.stringify({ lead: lead })
-  }
-
-  return $db.get('domain')
-    .then(function (data) {
-      var domain = data.domain || '/'
-      var url = 'https://' + domain + '/api/leads'
-      console.log(url)
-      return $request.post(url, opts)
-    })
-    .then(function (data) {
-      var res
-      try {
-        res = JSON.parse(data.response)
-      } catch (err) {
-        console.error('Error parsing JSON', err.message)
-        throw err
-      }
-      console.info('Created lead. ID: ' + res.lead.id)
-      return res
-    })
-    .fail(function (err) {
-      console.error('Error in creating lead. Status: ', err.status)
-    })
-}
-
 function updateLead (lead) {
   var opts = {
     headers: {
@@ -356,13 +285,8 @@ exports = {
    * @param {Object} payload - Payload received from installation
    */
   onAppInstall: function onAppInstall (payload) {
-    createSchedule(payload, true)
-      .then(function (id) {
-        return $db.set('schedule_id', { id: id })
-      })
-      .then(function () {
-        return $db.set('domain', { domain: payload.domain })
-      })
+    domain = payload.domain
+    schedule.create(payload)
       .then(function () {
         renderData()
       })
@@ -379,13 +303,7 @@ exports = {
    */
   onAppUninstall: function onAppUninstallHandler () {
     console.info('App uninstall triggered')
-    $db.get('schedule_id')
-      .then(function (res) {
-        console.info('Uninstall: Attempting to delete schedule ' + res.id)
-        return $schedule.delete({
-          name: res.id
-        })
-      })
+    schedule.delete()
       .then(function () {
         console.info('Scheduled sync disabled')
         renderData()
@@ -403,82 +321,32 @@ exports = {
    */
   onScheduledEvent: function onscheduledEventHandler (payload) {
     console.info('Scheduled event triggered')
-    var startTime = (new Date()).toISOString()
-    $db.get('lastrun')
-      .then(function (data) {
-        return getAirtableRecords(data.timestr)
-      })
-      .fail(function () {
-        return getAirtableRecords()
-      })
+    getAirtableRecords()
       .then(function (records) {
-        var recordsLen = records.length
         records.forEach(function (r, idx) {
-          var lead = {
-            id: r.fields.ID,
-            first_name: r.fields['First Name'],
-            last_name: r.fields['Last Name'],
-            company: {
-              name: r.fields.Company
-            },
-            city: r.fields.City,
-            linkedin: r.fields.LinkedIn,
-            created_at: r.fields['Created At']
-          }
-
+          var promise
           // New lead records
           if (!r.fields.ID && !r.fields.Synced) {
-            createLead(lead)
-              .then(function (res) {
-                console.info('Updating record in airtable')
-                return updateAirtableRecordStatus(r.id, res.lead.id)
-                  .then(function () {
-                    return $db.set('lead:' + res.lead.id, { recordId: r.id })
-                  })
-              })
-              .fail(function (err) {
-                console.info('Lead create error for record: ' + r.id)
-                console.error('Unable to create/update lead', err.message)
-              })
+            promise = leadClient.create(transform('airtable', 'freshsales', r.fields))
           }
 
           // Lead records marked for deletion
           if (r.fields.Delete && r.fields.ID) {
-            deleteLead(r.fields.ID)
+            promise = deleteLead(r.fields.ID)
               .then(function () {
-                console.info('Deleting record in Airtable')
                 return deleteAirtableRecord(r.id)
-              })
-              .fail(function (err) {
-                console.error('Lead delete error for record: ' + r.id)
-                return JSON.parse(err.response)
               })
           }
 
           // Updated lead records
           if (r.fields.ID && !r.fields.Delete) {
-            updateLead(lead)
-              .then(function () {
-                if (!r.fields.Synced) {
-                  return updateAirtableRecordStatus(r.id, r.fields.ID, true, false)
-                }
-              })
-              .fail(function (err) {
-                console.log('Unable to update lead', err)
-                return updateAirtableRecordStatus(r.id, r.fields.ID, false, false)
-              })
+            promise = leadClient.update(transform('airtable', 'freshsales', r.fields))
           }
 
-          // Last item
-          if (idx === recordsLen - 1) {
-            // All done successfully
-            updateLastRunTime(null, false, payload)
-          }
+          promise.then(function () {
+            console.log('Processed row', r.recordId)
+          })
         })
-      })
-      .fail(function (err) {
-        updateLastRunTime(startTime, true, payload)
-        console.error('Error running scheduled event\n', payload, err.message)
       })
   },
 
