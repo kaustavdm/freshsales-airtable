@@ -1,7 +1,7 @@
 var transforms = [
   {
-    from: 'freshsales',
-    to: 'airtable',
+    from: 'airtable',
+    to: 'freshsales',
     fn: function (values) {
       return {
         id: values.ID,
@@ -17,21 +17,52 @@ var transforms = [
     }
   },
   {
-    from: 'airtable',
-    to: 'freshsales',
+    from: 'freshsales',
+    to: 'airtable',
     fn: function (values) {
       return {
-        recordId: null,
-        fields: {
-          ID: values.id,
-          'First Name': values.first_name,
-          'Last Name': values.last_name,
-          Company: values.company.name,
-          Email: values.email,
-          LinkedIn: values.linkedin,
-          'Created At': values.created_at
-        }
+        ID: values.id,
+        'First Name': values.first_name,
+        'Last Name': values.last_name,
+        Company: values.company.name,
+        Email: values.email,
+        LinkedIn: values.linkedin,
+        'Created At': values.created_at
       }
+    }
+  },
+  {
+    from: 'airtable',
+    to: 'airtable',
+    fn: function (values) {
+      var schema = {
+        ID: '',
+        'First Name': '',
+        'Last Name': '',
+        Company: '',
+        Email: '',
+        LinkedIn: '',
+        'Created At': ''
+      }
+      return Object.assign({}, schema, values)
+    }
+  },
+  {
+    from: 'freshsales',
+    to: 'freshsales',
+    fn: function (values) {
+      var schema = {
+        id: '',
+        first_name: '',
+        last_name: '',
+        company: { name: '' },
+        email: '',
+        linkedin: '',
+        created_at: ''
+      }
+      var rec = Object.assign({}, schema, values)
+      rec.company = Object.assign({}, schema.company, values.company)
+      return rec
     }
   }
 ]
