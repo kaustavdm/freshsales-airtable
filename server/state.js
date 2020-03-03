@@ -1,11 +1,46 @@
 /* global $db */
 
 var { handleError } = require('./helper')
+var syncState = []
 
 module.exports = {
   leadState (leadId) {
     return $db.get('freshsales:lead:' + leadId)
       .fail(handleError)
+  },
+
+  /**
+   *
+   * @param {String} leadId
+   * @param {String} airtableRecordId
+   * @param {Number} updatedAt - Unix timestamp
+   */
+  queue (leadId, airtableRecordId, updatedAt) {
+    updatedAt = updatedAt || Date.now()
+    syncState.push({
+      airtableRecordId,
+      leadId,
+      updatedAt
+    })
+    return this
+  },
+
+  /**
+   * Perform the sync
+   *
+   * @param {Number} startTime - A Unix timestamp. Default to timestamp at the time of function call
+   */
+  async sync (startTime) {
+    var log = await $db.get('log')
+    // Merge back log with temporary sync queue
+    var merged = log.filter(function (item) {
+      return item.updatedAt && item.updatedAt > startTime
+    }).assign(log, syncState)
+
+    return $db.set('log', log)
+      .then(function () {
+        syncState = merged
+      })
   },
 
   recordState (airtableRecordId) {
