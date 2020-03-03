@@ -16,6 +16,11 @@ module.exports = {
       .fail(handleError)
   },
 
+  recordDeleted (recordId) {
+    return $db.delete('airtable:record:' + recordId)
+      .fail(handleError)
+  },
+
   leadChanged (leadId, airtableRecordId, lastUpdated, failedToSync) {
     return $db.set('freshsales:lead:' + leadId, {
       airtableRecordId,
@@ -42,8 +47,7 @@ module.exports = {
           })
             .fail(handleError)
         } else {
-          return stage
-            .fail(handleError)
+          return stage.fail(handleError)
         }
       })
   }
