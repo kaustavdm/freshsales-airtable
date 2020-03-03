@@ -2,28 +2,24 @@
 
 /* global $schedule */
 
-module.exports = {
-  name: 'freshsales-airtable-sync',
+var { handleError, dateStamp } = require('./helper')
+var name = 'freshsales-airtable-sync'
 
+module.exports = {
   create (payload) {
     var opts = {
-      name: this.name,
+      name,
       data: payload,
-      schedule_at: new Date((new Date()).getTime() + 60000).toISOString(), // 1 mins from now
+      schedule_at: dateStamp(60000), // 1 mins from now
       repeat: {
         time_unit: 'minutes',
         frequency: 1
       }
     }
-    return $schedule.create(opts)
-      .fail(function (err) {
-        console.error('Cannot schedule sync\n', err.message)
-      })
+    return $schedule.create(opts).fail(handleError)
   },
 
   delete () {
-    return $schedule.delete({
-      name: this.name
-    })
+    return $schedule.delete({ name }).fail(handleError)
   }
 }
