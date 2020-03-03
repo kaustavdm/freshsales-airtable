@@ -2,21 +2,7 @@
 
 /* global $request */
 
-function parseRes (data) {
-  var res
-  try {
-    res = JSON.parse(data.response)
-  } catch (err) {
-    console.error('Error parsing JSON', err.message)
-    throw err
-  }
-  return res
-}
-
-function handleError (err) {
-  console.error('Error: ' + (err.message || err.status))
-  console.error('Error details', err)
-}
+var { parseRes, handleError } = require('./helper')
 
 module.exports = {
   baseUrl: '',
@@ -41,11 +27,32 @@ module.exports = {
       .fail(handleError)
   },
 
-  update () {
-    return this
+  update (lead) {
+    var opts = {
+      headers: {
+        Authorization: 'Token token=<%= iparam.api_key %>',
+        'Content-Type': 'application/json; charset=utf-8'
+      },
+      body: JSON.stringify({ lead: lead })
+    }
+
+    var url = this.baseUrl + '/api/leads/' + lead.id
+    return $request.put(url, opts)
+      .then(parseRes)
+      .fail(handleError)
   },
 
   delete (leadId) {
-    return this
+    var opts = {
+      headers: {
+        Authorization: 'Token token=<%= iparam.api_key %>',
+        'Content-Type': 'application/json; charset=utf-8'
+      }
+    }
+
+    var url = this.baseUrl + '/api/leads/' + leadId
+    return $request.delete(url, opts)
+      .then(parseRes)
+      .fail(handleError)
   }
 }
