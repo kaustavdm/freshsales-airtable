@@ -1,9 +1,6 @@
 /* global $db */
 
-function handleError (err) {
-  console.error('Error: ' + (err.message || err.status))
-  console.error('Error details', err)
-}
+var { handleError } = require('./helper')
 
 module.exports = {
   leadState (leadId) {
