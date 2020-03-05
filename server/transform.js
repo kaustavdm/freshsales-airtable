@@ -67,7 +67,7 @@ var transforms = [
   }
 ]
 
-module.exports = function transform (from, to, values) {
+exports = function transform (from, to, values) {
   var t = transforms.filter(function (elem) {
     return elem.from === from && elem.to === to
   })

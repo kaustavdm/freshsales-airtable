@@ -5,7 +5,7 @@
 var { handleError, dateStamp } = require('./helper')
 var name = 'freshsales-airtable-sync'
 
-module.exports = {
+exports = {
   create (payload) {
     var opts = {
       name,

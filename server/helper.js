@@ -6,7 +6,7 @@
  * @name helper
  * @class
  */
-module.exports = {
+exports = {
 
   /**
    * Parse a JSON response from a known HTTP response.
@@ -19,9 +19,10 @@ module.exports = {
     var res
     try {
       res = JSON.parse(payload.response)
+      console.log(payload)
     } catch (err) {
       console.error('Error parsing JSON', err.message)
-      throw err
+      this.handleError(err)
     }
     return res
   },
@@ -29,12 +30,17 @@ module.exports = {
   /**
    * All good errors come here to be forgotten.
    *
+   * @todo Improve error handling
    * @static
    * @param {Error} err - An `error` object
    */
   handleError (err) {
-    console.error('Error: ' + (err.message || err.status))
-    console.error('Error details', err)
+    if (/^[1-5][0-9][0-9]$/.test(err.status)) {
+      console.log('Status: ' + err.status + ' Message: ' + err.message)
+    }
+    else {
+      console.error('Error: ' + err.status + ': ' + err.message)
+    }
   },
 
   /**

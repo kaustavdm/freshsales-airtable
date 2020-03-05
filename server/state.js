@@ -1,27 +1,41 @@
 /* global $db */
 
 var { handleError } = require('./helper')
-var syncState = []
+var syncQueue = {}
 
-module.exports = {
-  leadState (leadId) {
-    return $db.get('freshsales:lead:' + leadId)
-      .fail(handleError)
+exports = {
+  start () {
+    return $db.get('log')
+      .then(function (log) {
+        syncQueue = log
+        return log
+      })
+  },
+
+  exists (airtableRecordId) {
+    return syncQueue[airtableRecordId] && !syncQueue[airtableRecordId].delete
   },
 
   /**
+   * Queue records that have been processed in current run
    *
-   * @param {String} leadId
    * @param {String} airtableRecordId
+   * @param {String} leadId
    * @param {Number} updatedAt - Unix timestamp
    */
-  queue (leadId, airtableRecordId, updatedAt) {
+  queue (airtableRecordId, leadId, updatedAt) {
     updatedAt = updatedAt || Date.now()
-    syncState.push({
+    syncQueue[airtableRecordId] = {
       airtableRecordId,
       leadId,
       updatedAt
-    })
+    }
+    return this
+  },
+
+  dequeue(airtableRecordId) {
+    syncQueue[airtableRecordId] = syncQueue[airtableRecordId] || {}
+    syncQueue[airtableRecordId].delete = true
     return this
   },
 
@@ -30,57 +44,31 @@ module.exports = {
    *
    * @param {Number} startTime - A Unix timestamp. Default to timestamp at the time of function call
    */
-  async sync (startTime) {
-    var log = await $db.get('log')
-    // Merge back log with temporary sync queue
-    var merged = log.filter(function (item) {
-      return item.updatedAt && item.updatedAt > startTime
-    }).assign(log, syncState)
-
-    return $db.set('log', log)
-      .then(function () {
-        syncState = merged
-      })
+  sync (startTime) {
+    for (var [k, v] of Object.entries(syncQueue)) {
+      if (v.delete || v.updatedAt < startTime) {
+        delete syncQueue[k]
+        return
+      }
+      this.leadChanged(v.leadId, v.airtableRecordId, v.updatedAt, !!v.failedToSync)
+    }
+    return $db.set('log', syncQueue)
   },
 
-  recordState (airtableRecordId) {
-    return $db.get('airtable:record:' + airtableRecordId)
-      .fail(handleError)
+  leadStatus (leadId) {
+    return $db.get('lead:' + leadId).fail(handleError)
   },
 
-  recordDeleted (recordId) {
-    return $db.delete('airtable:record:' + recordId)
-      .fail(handleError)
-  },
-
-  leadChanged (leadId, airtableRecordId, lastUpdated, failedToSync) {
-    return $db.set('freshsales:lead:' + leadId, {
+  leadChanged (leadId, airtableRecordId, updatedAt) {
+    return $db.set('lead:' + leadId, {
+      leadId,
       airtableRecordId,
-      lastUpdated,
-      failedToSync
-    })
-      .then(function () {
-        if (airtableRecordId) {
-          return $db.set('airtable:record:' + airtableRecordId, {
-            leadId
-          })
-            .fail(handleError)
-        }
-      })
+      updatedAt
+    }).fail(handleError)
   },
 
   leadDeleted (leadId) {
-    return this.leadState(leadId)
-      .then(function (rec) {
-        var stage = $db.delete('airtable:record:' + rec.airtableRecordId)
-        if (rec.airtableRecordId != null) {
-          return stage.then(function () {
-            return $db.delete('freshsales:lead:' + leadId)
-          })
-            .fail(handleError)
-        } else {
-          return stage.fail(handleError)
-        }
-      })
+    return $db.delete('lead:' + leadId)
+      .fail(handleError)
   }
 }

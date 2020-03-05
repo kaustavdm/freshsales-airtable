@@ -4,7 +4,7 @@
 
 var { parseRes, handleError } = require('./helper')
 
-module.exports = {
+exports = {
   baseUrl: '',
 
   domain (d) {
