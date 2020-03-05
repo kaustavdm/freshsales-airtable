@@ -49,7 +49,10 @@ exports = {
         console.info(res.records.length + ' record(s) fetched from Airtable')
         return res.records
       })
-      .fail(handleError)
+      .fail(function(err) {
+        console.error('Could not fetch Airtable records. Check app settings.')
+        handleError(err)
+      })
   },
 
   create (lead) {
@@ -63,7 +66,10 @@ exports = {
     }
     return $request.post(url, opts)
       .then(parseRes)
-      .fail(handleError)
+      .fail(function(err) {
+        console.error('Could not create Airtable record. Check app settings.')
+        handleError(err)
+      })
   },
 
   update (recordId, lead) {

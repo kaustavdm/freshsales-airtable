@@ -32,6 +32,9 @@ exports = {
   onAppInstall: function onAppInstall (payload) {
     schedule.create(payload)
       .then(function () {
+        return state.init()
+      })
+      .then(function () {
         console.log('App installed')
         renderData()
       })
@@ -49,6 +52,9 @@ exports = {
   onAppUninstall: function onAppUninstallHandler () {
     console.info('App uninstall triggered')
     schedule.delete()
+      .then(function () {
+        return $db.delete('log')
+      })
       .then(function () {
         console.info('Scheduled sync disabled')
         renderData()
@@ -107,7 +113,7 @@ exports = {
           })
           .fail(handleError)
         }
-        state.sync(startTime)
+        return state.sync(startTime)
           .then(function () {
             console.log('State synced successfully')
           })

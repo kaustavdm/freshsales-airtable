@@ -4,12 +4,17 @@ var { handleError } = require('./helper')
 var syncQueue = {}
 
 exports = {
+
+  init() {
+    return $db.set('log', { queue: {}}).fail(handleError)
+  },
+
   start () {
     return $db.get('log')
-      .then(function (log) {
-        syncQueue = log
-        return log
+      .then(function (res) {
+        return syncQueue = res.queue || {}
       })
+      .fail(handleError)
   },
 
   exists (airtableRecordId) {
@@ -52,7 +57,7 @@ exports = {
       }
       this.leadChanged(v.leadId, v.airtableRecordId, v.updatedAt, !!v.failedToSync)
     }
-    return $db.set('log', syncQueue)
+    return $db.set('log', { queue: syncQueue })
   },
 
   leadStatus (leadId) {
