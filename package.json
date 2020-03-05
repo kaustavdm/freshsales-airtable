@@ -1,6 +1,6 @@
 {
   "name": "freshsales-airtable",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "description": "A serverless app for syncing Freshsales leads with an Airtable sheet",
   "scripts": {
     "test": "fdk validate",

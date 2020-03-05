@@ -53,6 +53,6 @@ Released under the [MIT](LICENSE) license.
 [_schema]: #airtable-schema
 [_airtableapi]: https://airtable.com/api
 [_airtableaccount]: https://airtable.com/account
-[_release]: https://github.com/kaustavdm/freshsales-airtable/releases/download/v0.1.0/freshsales-airtable.zip
+[_release]: https://github.com/kaustavdm/freshsales-airtable/releases/download/v0.2.0/freshsales-airtable.zip
 [_customapp]: https://developer.freshsales.io/docs/custom-apps/
 [_base]: https://airtable.com/shrScfEcJP2MEfc4s/tbl0awCqKktPtAMd3
