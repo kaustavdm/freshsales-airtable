@@ -51,6 +51,7 @@ exports = {
    * @returns {String} - ISO Date time stamp
    */
   dateStamp (addMs) {
+    addMs = addMs || 0
     return new Date((new Date()).getTime() + addMs).toISOString()
   }
 }

@@ -6,13 +6,14 @@ var syncQueue = {}
 exports = {
 
   init() {
-    return $db.set('log', { queue: {}}).fail(handleError)
+    return $db.set('log', { queue: {}, lastRun: 0 }).fail(handleError)
   },
 
   start () {
     return $db.get('log')
       .then(function (res) {
-        return syncQueue = res.queue || {}
+        syncQueue = res.queue
+        return { queue: res.queue, lastRun: res.lastRun || 0 }
       })
       .fail(handleError)
   },
@@ -57,7 +58,7 @@ exports = {
       }
       this.leadChanged(v.leadId, v.airtableRecordId, v.updatedAt, !!v.failedToSync)
     }
-    return $db.set('log', { queue: syncQueue })
+    return $db.set('log', { queue: syncQueue, lastRun: startTime })
   },
 
   leadStatus (leadId) {

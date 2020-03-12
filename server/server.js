@@ -76,16 +76,19 @@ exports = {
     var l = leadClient.domain(payload.domain)
 
     state.start()
-      .then(function () {
-        return airtableClient.records(dateStamp(-90000))
+      .then(function ({lastRun}) {
+        var timediff = lastRun - Date.now()
+        return airtableClient.records(dateStamp(timediff))
       })
       .then(function (records) {
         for (var r of records) {
+          var promise
+          var updatedAtTime = (new Date(r.fields['Updated At'] || 0)).getTime()
           // New lead records
           if (!r.fields.ID && !state.exists(r.id)) {
             promise = l.create(transform('airtable', 'freshsales', r.fields))
               .then(function (lead) {
-                return state.queue(r.id, lead.id, Date.now())
+                return state.queue(r.id, lead.id, updatedAtTime)
               })
           }
 
@@ -104,7 +107,7 @@ exports = {
           else if (r.fields.ID && !r.fields.Delete && !state.exists(r.id)) {
             promise = l.update(transform('airtable', 'freshsales', r.fields))
               .then(function (lead) {
-                return state.queue(r.id, lead.id, Date.now())
+                return state.queue(r.id, lead.id, updatedAtTime)
               })
           }
 
